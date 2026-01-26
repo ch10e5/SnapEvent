@@ -1,0 +1,5 @@
+{
+  "name": "EventSnap Calendar",
+  "description": "Extract event details from invitation images and instantly create Google Calendar events using Gemini 2.5.",
+  "requestFramePermissions": []
+}
