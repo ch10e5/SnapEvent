@@ -4,6 +4,7 @@ export interface EventDetails {
   description: string;
   startDateTime: string; // ISO 8601 format preferred
   endDateTime: string;   // ISO 8601 format preferred
+  recurrence?: string;   // RFC 5545 RRULE string (e.g., RRULE:FREQ=WEEKLY;BYDAY=MO)
 }
 
 export enum AppState {

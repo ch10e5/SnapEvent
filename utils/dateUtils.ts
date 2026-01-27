@@ -16,7 +16,7 @@ export const formatToGCalDate = (dateString: string): string => {
  * Generates the Google Calendar "Add Event" URL.
  */
 export const generateGoogleCalendarUrl = (event: EventDetails): string => {
-  const { title, location, description, startDateTime, endDateTime } = event;
+  const { title, location, description, startDateTime, endDateTime, recurrence } = event;
 
   const baseUrl = "https://calendar.google.com/calendar/render";
   const params = new URLSearchParams({
@@ -40,6 +40,11 @@ export const generateGoogleCalendarUrl = (event: EventDetails): string => {
 
   if (start && end) {
     params.set("dates", `${start}/${end}`);
+  }
+
+  // Handle recurrence
+  if (recurrence) {
+    params.set("recur", recurrence);
   }
 
   return `${baseUrl}?${params.toString()}`;

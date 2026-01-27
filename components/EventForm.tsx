@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { EventDetails } from '../types';
 import { generateGoogleCalendarUrl, toInputDateTime, fromInputDateTime } from '../utils/dateUtils';
-import { Calendar, MapPin, AlignLeft, Clock, ArrowRight, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, AlignLeft, Clock, Repeat, ExternalLink, Check } from 'lucide-react';
 
 interface EventFormProps {
   initialData: EventDetails;
   onReset: () => void;
+  onComplete?: () => void;
+  index?: number;
+  total?: number;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ initialData, onReset }) => {
+const EventForm: React.FC<EventFormProps> = ({ initialData, onReset, onComplete, index = 0, total = 1 }) => {
   const [formData, setFormData] = useState<EventDetails>(initialData);
   const [calendarUrl, setCalendarUrl] = useState('');
+  const [isAdded, setIsAdded] = useState(false);
 
   // Update calendar URL whenever form data changes
   useEffect(() => {
@@ -27,19 +31,37 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onReset }) => {
     }
   };
 
+  const handleAddToCalendar = () => {
+    setIsAdded(true);
+    
+    // Call onComplete after a short delay to trigger the shuffle
+    if (onComplete) {
+        onComplete();
+    } else {
+        // Fallback for single event usage if no callback provided
+        setTimeout(() => {
+          onReset();
+        }, 2000);
+    }
+    
+    // Reset added state after animation might happen (mostly for when card cycles back)
+    setTimeout(() => {
+        setIsAdded(false);
+    }, 1000);
+  };
+
   return (
-    <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-      <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center">
+    <div className="w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden mb-0">
+      <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center transition-colors duration-300" 
+           style={isAdded ? { backgroundColor: '#059669' } : {}}>
         <h2 className="text-white font-semibold text-lg flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
-          Review Event Details
+          {isAdded ? <Check className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
+          {isAdded ? 'Opened in Calendar' : `Event Details`}
         </h2>
-        <button 
-          onClick={onReset}
-          className="text-indigo-100 hover:text-white text-sm underline decoration-indigo-300 hover:decoration-white transition-all"
-        >
-          Scan Another
-        </button>
+        
+        <span className="text-indigo-200 text-xs font-mono bg-indigo-800/30 px-2 py-1 rounded">
+           #{index + 1}
+        </span>
       </div>
 
       <div className="p-6 space-y-6">
@@ -85,6 +107,21 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onReset }) => {
             />
           </div>
         </div>
+        
+        {/* Recurrence */}
+        <div className="space-y-2">
+           <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <Repeat size={14} /> Recurrence (Optional)
+          </label>
+          <input
+            type="text"
+            name="recurrence"
+            value={formData.recurrence || ''}
+            onChange={handleChange}
+            placeholder="e.g. RRULE:FREQ=WEEKLY;BYDAY=MO"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono text-sm"
+          />
+        </div>
 
         {/* Location */}
         <div className="space-y-2">
@@ -122,14 +159,12 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onReset }) => {
             href={calendarUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleAddToCalendar}
             className="w-full flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
           >
             <span>Add to Google Calendar</span>
             <ExternalLink size={20} />
           </a>
-          <p className="text-center text-slate-400 text-xs mt-3">
-            Opens in a new tab. You can save the event there.
-          </p>
         </div>
       </div>
     </div>
