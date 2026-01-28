@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageDropzone from './components/ImageDropzone';
 import EventForm from './components/EventForm';
 import { EventDetails, AppState } from './types';
 import { fileToGenerativePart, extractEventDetails } from './services/geminiService';
-import { CalendarCheck, Loader2, AlertCircle, CheckCircle, Eye, X, ChevronLeft, Menu, HelpCircle } from 'lucide-react';
+import { CalendarCheck, Loader2, AlertCircle, CheckCircle, Eye, X, ChevronLeft, Menu, ShieldCheck, Lock } from 'lucide-react';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -13,6 +13,16 @@ const App: React.FC = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+
+  // Cleanup object URLs to prevent memory leaks and ensure data is flushed
+  useEffect(() => {
+    return () => {
+      if (previewImage) {
+        URL.revokeObjectURL(previewImage);
+      }
+    };
+  }, [previewImage]);
 
   const processImage = async (file: File) => {
     setAppState(AppState.PROCESSING);
@@ -104,11 +114,19 @@ const App: React.FC = () => {
                     <button 
                         key={link.label} 
                         onClick={link.action}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all flex items-center gap-2"
                     >
+                        <link.icon size={16} />
                         {link.label}
                     </button>
                 ))}
+                <button 
+                    onClick={() => setIsPrivacyModalOpen(true)}
+                    className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all flex items-center gap-2"
+                >
+                    <ShieldCheck size={16} />
+                    Privacy
+                </button>
             </nav>
 
             {/* Review State Actions */}
@@ -161,9 +179,15 @@ const App: React.FC = () => {
                     {link.label}
                 </button>
             ))}
-             <button className="w-full h-[54px] flex items-center gap-3 px-4 rounded-xl hover:bg-slate-50 text-left text-slate-500 font-medium active:bg-slate-100 transition-colors">
-                <HelpCircle size={20} />
-                Help & Support
+             <button 
+                onClick={() => {
+                    setIsPrivacyModalOpen(true);
+                    setIsMobileMenuOpen(false);
+                }}
+                className="w-full h-[54px] flex items-center gap-3 px-4 rounded-xl hover:bg-slate-50 text-left text-slate-500 font-medium active:bg-slate-100 transition-colors"
+            >
+                <ShieldCheck size={20} />
+                Data Privacy
             </button>
           </div>
       </div>
@@ -298,6 +322,45 @@ const App: React.FC = () => {
                />
             </div>
          </div>
+      )}
+
+      {/* Privacy Modal */}
+      {isPrivacyModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsPrivacyModalOpen(false)} />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-scale-in">
+                <div className="flex items-center gap-4 mb-6 text-indigo-700">
+                    <div className="p-3 bg-indigo-50 rounded-xl">
+                        <Lock size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-900">Data Privacy</h2>
+                        <p className="text-sm text-slate-500">Your security is our priority</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4 text-slate-600 leading-relaxed text-sm md:text-base">
+                    <p>
+                        <strong>1. Transient Processing:</strong> Your images are processed entirely in memory. Once you refresh the page or close the app, all local data is cleared.
+                    </p>
+                    <p>
+                        <strong>2. No Storage:</strong> We do not store your images or personal data on our servers.
+                    </p>
+                    <p>
+                        <strong>3. Secure AI Analysis:</strong> Images are sent securely to Google's Gemini AI solely for the purpose of extracting event details. They are not used to train models.
+                    </p>
+                </div>
+
+                <div className="mt-8">
+                    <button 
+                        onClick={() => setIsPrivacyModalOpen(false)}
+                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors focus:outline-none focus:ring-4 focus:ring-indigo-500/30"
+                    >
+                        Understood
+                    </button>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
