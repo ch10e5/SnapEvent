@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Upload, Image as ImageIcon, ClipboardPaste } from 'lucide-react';
+import { Upload, Image as ImageIcon } from 'lucide-react';
 
 interface ImageDropzoneProps {
   onImageSelected: (file: File) => void;
@@ -40,7 +40,6 @@ const ImageDropzone: React.FC<ImageDropzoneProps> = ({ onImageSelected, disabled
     }
   }, [disabled, onImageSelected]);
 
-  // Handle paste events globally
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (disabled) return;
@@ -51,11 +50,8 @@ const ImageDropzone: React.FC<ImageDropzoneProps> = ({ onImageSelected, disabled
         }
       }
     };
-
     window.addEventListener('paste', handlePaste);
-    return () => {
-      window.removeEventListener('paste', handlePaste);
-    };
+    return () => window.removeEventListener('paste', handlePaste);
   }, [disabled, onImageSelected]);
 
   return (
@@ -65,44 +61,43 @@ const ImageDropzone: React.FC<ImageDropzoneProps> = ({ onImageSelected, disabled
       onDrop={handleDrop}
       className={`
         relative group cursor-pointer
-        border-2 border-dashed rounded-xl p-10
-        transition-all duration-300 ease-in-out
+        bg-slate-50 rounded-3xl
+        border-4 border-dashed
+        transition-all duration-200 ease-out
         flex flex-col items-center justify-center text-center
-        min-h-[300px]
-        ${isDragging 
-          ? 'border-indigo-500 bg-indigo-50 scale-[1.02] shadow-xl' 
-          : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50 bg-white'
-        }
-        ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}
+        aspect-[4/5] w-full max-w-sm mx-auto
+        overflow-hidden
+        ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-300 hover:border-indigo-300 hover:bg-slate-100'}
+        ${disabled ? 'opacity-50 pointer-events-none' : ''}
       `}
     >
       <input
         type="file"
         accept="image/*"
         onChange={handleFileInput}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
         disabled={disabled}
       />
       
+      {/* Flat Illustration Icon */}
       <div className={`
-        w-20 h-20 rounded-full mb-6 flex items-center justify-center
-        transition-colors duration-300
-        ${isDragging ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600'}
+        relative z-20 w-24 h-24 rounded-full mb-6 flex items-center justify-center
+        transition-colors duration-200
+        ${isDragging ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-200'}
       `}>
         {isDragging ? <Upload size={40} /> : <ImageIcon size={40} />}
       </div>
 
-      <h3 className="text-xl font-semibold text-slate-700 mb-2">
-        {isDragging ? 'Drop it here!' : 'Upload Event Invitation'}
+      <h3 className="relative z-20 text-2xl font-bold text-slate-800 mb-2 group-hover:text-indigo-700 transition-colors">
+        Tap to Upload
       </h3>
       
-      <p className="text-slate-500 max-w-sm mb-6">
-        Drag and drop an image file here, or click to browse.
+      <p className="relative z-20 text-slate-500 px-8 text-sm group-hover:text-slate-600">
+        or drag and drop your image here
       </p>
 
-      <div className="flex items-center gap-2 text-sm text-slate-400 bg-slate-100 px-4 py-2 rounded-full">
-        <ClipboardPaste size={16} />
-        <span>Tip: You can also paste (Ctrl+V) an image directly!</span>
+      <div className="absolute bottom-8 text-xs font-bold text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+        Paste from Clipboard
       </div>
     </div>
   );

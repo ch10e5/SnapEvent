@@ -29,40 +29,39 @@ export const fileToGenerativePart = async (file: File): Promise<string> => {
 export const extractEventDetails = async (base64Image: string, mimeType: string): Promise<EventDetails[]> => {
   const ai = getClient();
   
-  // Using gemini-2.5-flash-image for image analysis as per guidelines.
-  const modelId = "gemini-2.5-flash-image";
+  // Optimized for speed: Using gemini-3-flash-preview with a moderate thinking budget.
+  // This maintains high accuracy for OCR/Layout but responds much faster than Pro.
+  const modelId = "gemini-3-flash-preview";
   const currentDateTime = new Date().toString();
 
   const prompt = `
-    Analyze this image which is an event invitation, flyer, schedule, or timetable.
+    You are an expert event extraction assistant. Your task is to perform high-fidelity OCR and layout analysis on the provided image (event invitation, flyer, schedule, or timetable) and extract structured event data.
+
     CONTEXT: The current date and time is ${currentDateTime}.
-    
-    Goal: Extract all event information into a JSON ARRAY of event objects.
 
-    TABLE / SCHEDULE PARSING INSTRUCTIONS:
-    - Check if the content is organized in a table, grid, or columnar format.
-    - If a table is detected:
-      1. Identify column headers (e.g., "Time", "Session", "Room", "Speaker").
-      2. Iterate through each row as a separate event.
-      3. Map columns to the appropriate fields below (e.g. "Session" -> title, "Room" -> location).
-      4. Handle row spans or section headers: if a date applies to a group of rows, apply it to all of them.
-      5. Any extra columns not fitting title/time/location should be added to the 'description'.
+    GOAL: Return a pure JSON ARRAY of event objects.
 
-    For each event object, extract the following:
-    - title: The name of the event.
-    - startDateTime: The start date and time in ISO 8601 format (YYYY-MM-DDTHH:mm:ss).
-      RULE FOR DAYS OF WEEK: If the image mentions a day (e.g. "Monday") without a specific date (e.g. "Nov 12"), use the context date provided above to calculate the timestamp for the NEXT occurrence of that day.
-    - endDateTime: The end date and time in ISO 8601 format. If not explicitly stated, estimate it to be 1-2 hours after start.
-    - location: The full address or venue name.
-    - description: A brief summary of event details. Include extra table columns here (e.g. Speaker names).
-    - recurrence: If the event implies recurrence (e.g. "Weekly", "Every Monday") OR if only a day of the week is mentioned without a specific date, set this to a valid RFC 5545 RRULE string (e.g., "RRULE:FREQ=WEEKLY;BYDAY=MO").
+    INSTRUCTIONS:
+    1. **Text Extraction**: Read all text carefully. Pay close attention to dates, times (AM/PM), and venue names.
+    2. **Layout Analysis**: 
+       - If the image contains a table or grid, identify headers and map rows to events correctly.
+       - Handle multi-line rows or grouped events (e.g., a date header applying to multiple time slots below it).
+    3. **Date Inference**:
+       - If the year is missing, assume the event is in the near future relative to ${currentDateTime}.
+       - If a day name (e.g., "Friday") is given without a specific date, calculate the next occurrence of that day.
+    4. **Output Format**:
+       Return a JSON array where each object has:
+       - title: (string) Event name.
+       - startDateTime: (string) ISO 8601 (YYYY-MM-DDTHH:mm:ss).
+       - endDateTime: (string) ISO 8601. Estimate duration (1-2h) if not found.
+       - location: (string) Full venue address or name.
+       - description: (string) Any other details (speakers, agenda, notes).
+       - recurrence: (string) RFC 5545 RRULE if recurring (e.g., "RRULE:FREQ=WEEKLY;BYDAY=MO").
 
-    CRITICAL INSTRUCTIONS FOR MULTIPLE EVENTS:
-    - If the image contains a schedule or multiple distinct events (e.g. "Monday 10am" and "Tuesday 11am"), output a separate object for EACH event entry.
-    - For recurring weekly schedules (e.g. "Mon 10am, Wed 2pm"), create separate event objects for each day/time pair with the appropriate RRULE.
-    
-    If a field is not found or unclear, leave it as an empty string.
-    Return ONLY valid JSON. Do not use markdown code blocks.
+    CRITICAL:
+    - If multiple events are listed, extract ALL of them as separate objects.
+    - Do not hallucinate information not present in the image.
+    - Return ONLY valid JSON.
   `;
 
   try {
@@ -80,6 +79,12 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
             text: prompt
           }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        thinkingConfig: {
+            thinkingBudget: 1024 // Reduced budget to balance speed and reasoning accuracy
+        }
       }
     });
 
@@ -88,24 +93,26 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
         throw new Error("No response from AI");
     }
 
-    // Parse the JSON. 
-    // Look for array brackets first
-    const firstBracket = responseText.indexOf('[');
-    const lastBracket = responseText.lastIndexOf(']');
+    // Robust JSON parsing
+    let jsonString = responseText;
     
-    let jsonString = "";
+    // Attempt to sanitize if markdown code blocks are present despite mimeType config
+    if (jsonString.includes('```json')) {
+        jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+    }
+    
+    // Find the array bounds
+    const firstBracket = jsonString.indexOf('[');
+    const lastBracket = jsonString.lastIndexOf(']');
     
     if (firstBracket !== -1 && lastBracket !== -1) {
-        jsonString = responseText.substring(firstBracket, lastBracket + 1);
+        jsonString = jsonString.substring(firstBracket, lastBracket + 1);
     } else {
-        // Fallback: Check for single object and wrap in array
-        const firstBrace = responseText.indexOf('{');
-        const lastBrace = responseText.lastIndexOf('}');
+        // Fallback for single object
+        const firstBrace = jsonString.indexOf('{');
+        const lastBrace = jsonString.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace !== -1) {
-            jsonString = `[${responseText.substring(firstBrace, lastBrace + 1)}]`;
-        } else {
-            // Last resort: try parsing the whole text
-            jsonString = responseText;
+             jsonString = `[${jsonString.substring(firstBrace, lastBrace + 1)}]`;
         }
     }
 
@@ -113,14 +120,14 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
     try {
         data = JSON.parse(jsonString);
     } catch (e) {
-        console.error("JSON Parse Error", e, jsonString);
-        throw new Error("Failed to parse AI response");
+        console.error("JSON Parse Error", e, responseText);
+        throw new Error("Failed to parse AI response as JSON");
     }
 
     const dataArray = Array.isArray(data) ? data : [data];
 
     return dataArray.map((item: any) => ({
-      title: item.title || "",
+      title: item.title || "Untitled Event",
       location: item.location || "",
       description: item.description || "",
       startDateTime: item.startDateTime || "",

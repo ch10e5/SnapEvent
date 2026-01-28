@@ -3,7 +3,7 @@ import ImageDropzone from './components/ImageDropzone';
 import EventForm from './components/EventForm';
 import { EventDetails, AppState } from './types';
 import { fileToGenerativePart, extractEventDetails } from './services/geminiService';
-import { CalendarCheck, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { CalendarCheck, Loader2, AlertCircle, CheckCircle, Eye, X, ChevronLeft, Menu, HelpCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -11,6 +11,8 @@ const App: React.FC = () => {
   const [stackOrder, setStackOrder] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const processImage = async (file: File) => {
     setAppState(AppState.PROCESSING);
@@ -30,7 +32,7 @@ const App: React.FC = () => {
       setAppState(AppState.REVIEW);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Sorry, we couldn't read the event details from this image. Please try another image or ensure the text is legible.");
+      setErrorMessage("Sorry, we couldn't read the event details. Please try again.");
       setAppState(AppState.ERROR);
     }
   };
@@ -40,180 +42,263 @@ const App: React.FC = () => {
     setEvents([]);
     setStackOrder([]);
     setErrorMessage('');
+    setIsImageModalOpen(false);
+    setIsMobileMenuOpen(false);
     if (previewImage) {
       URL.revokeObjectURL(previewImage);
       setPreviewImage(null);
     }
   };
 
-  const handleCardComplete = () => {
-    // Dismiss the card after a short delay to allow for the "Added" visual feedback
-    setTimeout(() => {
-        setStackOrder(prev => {
-            const newOrder = [...prev];
-            newOrder.shift(); // Remove the top card
-            return newOrder;
-        });
-    }, 500);
+  const dismissCurrentCard = () => {
+    setStackOrder(prev => {
+        const newOrder = [...prev];
+        newOrder.shift(); // Remove the top card
+        return newOrder;
+    });
   };
 
+  const handleCardSaved = () => {
+    // Dismiss the card after a short delay
+    setTimeout(dismissCurrentCard, 500);
+  };
+
+  const navLinks = [
+    { label: 'New Scan', icon: CalendarCheck, action: resetApp },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="text-center mb-10 space-y-2">
-        <div className="inline-flex items-center justify-center p-3 bg-indigo-600 rounded-2xl shadow-lg mb-4">
-          <CalendarCheck className="text-white w-8 h-8" />
+    <div className="grid grid-rows-[auto_1fr] h-[100dvh] w-full bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 overflow-hidden">
+      
+      {/* Responsive Header - Flat Style */}
+      <header className="px-4 md:px-8 py-3 flex items-center justify-between z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        
+        {/* Left: Logo or Back Button */}
+        <div className="flex items-center gap-2 text-indigo-700 z-50">
+           {appState === AppState.REVIEW ? (
+             <button 
+                onClick={resetApp} 
+                className="w-[44px] h-[44px] -ml-3 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                aria-label="Go Back"
+             >
+               <ChevronLeft size={28} />
+             </button>
+           ) : (
+             <div className="w-[40px] h-[40px] flex items-center justify-center bg-indigo-600 rounded-lg shadow-sm shrink-0">
+                <CalendarCheck className="w-6 h-6 text-white" />
+             </div>
+           )}
+           {appState !== AppState.REVIEW && (
+             <span className="font-bold text-lg md:text-xl tracking-tight text-slate-800 hidden xs:inline">
+               EventSnap
+             </span>
+           )}
         </div>
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
-          EventSnap
-        </h1>
-        <p className="text-lg text-slate-600 max-w-lg mx-auto">
-          Turn any invitation image into a Google Calendar event in seconds using AI.
-        </p>
+
+        {/* Right Section: Actions & Navigation */}
+        <div className="flex items-center gap-2 md:gap-6 z-50">
+            
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-1 bg-white p-1 rounded-full border border-slate-200 shadow-sm">
+                {navLinks.map((link) => (
+                    <button 
+                        key={link.label} 
+                        onClick={link.action}
+                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                    >
+                        {link.label}
+                    </button>
+                ))}
+            </nav>
+
+            {/* Review State Actions */}
+            {appState === AppState.REVIEW && stackOrder.length > 0 && (
+            <div className="flex items-center gap-2 md:gap-3 mr-2 md:mr-0">
+                <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 whitespace-nowrap border border-indigo-200">
+                    {stackOrder.length} Left
+                </span>
+                <button 
+                    onClick={() => setIsImageModalOpen(true)}
+                    className="w-[44px] h-[44px] flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-600 hover:text-indigo-600 hover:border-indigo-300 shadow-sm active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    title="View Original Image"
+                    aria-label="View Original Image"
+                >
+                    <Eye size={20} />
+                </button>
+            </div>
+            )}
+
+            {/* Mobile Menu Toggle */}
+            <button 
+                className="md:hidden w-[44px] h-[44px] flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                aria-label="Toggle Menu"
+            >
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+        </div>
+      </header>
+
+      {/* Mobile Menu Dropdown */}
+      <div 
+        className={`
+            fixed inset-x-0 top-[65px] bg-white border-b border-slate-200 shadow-xl z-30 
+            transition-all duration-300 ease-in-out origin-top md:hidden
+            ${isMobileMenuOpen ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-4 pointer-events-none'}
+        `}
+      >
+          <div className="p-4 flex flex-col gap-2">
+            {navLinks.map((link) => (
+                <button 
+                    key={link.label} 
+                    onClick={() => {
+                        link.action();
+                        setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full h-[54px] flex items-center gap-3 px-4 rounded-xl hover:bg-slate-50 text-left text-slate-700 font-medium active:bg-slate-100 transition-colors"
+                >
+                    <link.icon size={20} className="text-indigo-600" />
+                    {link.label}
+                </button>
+            ))}
+             <button className="w-full h-[54px] flex items-center gap-3 px-4 rounded-xl hover:bg-slate-50 text-left text-slate-500 font-medium active:bg-slate-100 transition-colors">
+                <HelpCircle size={20} />
+                Help & Support
+            </button>
+          </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="w-full max-w-4xl flex flex-col items-center gap-8">
+      {/* Main Content */}
+      <main className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center p-5 md:p-8">
         
-        {/* State: IDLE or ERROR */}
-        {(appState === AppState.IDLE || appState === AppState.ERROR) && (
-          <div className="w-full max-w-xl animate-fade-in">
-            <ImageDropzone onImageSelected={processImage} disabled={false} />
-            
-            {appState === AppState.ERROR && (
-              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 text-red-700 animate-shake">
-                <AlertCircle className="shrink-0 mt-0.5" />
-                <p>{errorMessage}</p>
-                <button onClick={resetApp} className="ml-auto font-semibold underline hover:text-red-800">Retry</button>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Dynamic Content Container */}
+        <div className="w-full max-w-lg h-full flex flex-col justify-center">
 
-        {/* State: PROCESSING */}
-        {appState === AppState.PROCESSING && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
-            <div className="relative">
-              {/* Preview image behind loader */}
-              {previewImage && (
-                <div className="absolute inset-0 flex items-center justify-center opacity-30 blur-sm scale-90">
-                  <img src={previewImage} alt="Processing" className="max-w-xs max-h-48 object-contain rounded-lg" />
+            {/* State: IDLE or ERROR */}
+            {(appState === AppState.IDLE || appState === AppState.ERROR) && (
+              <div className="animate-fade-in space-y-4 md:space-y-8 w-full max-w-md mx-auto">
+                <div className="text-center space-y-2 md:mb-8">
+                   <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Scan Invitation</h1>
+                   <p className="text-slate-500 text-base md:text-lg max-w-xs mx-auto">Upload an image to magically create calendar events.</p>
                 </div>
-              )}
-              <div className="relative z-10 p-4 bg-white rounded-full shadow-xl">
-                <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-              </div>
-            </div>
-            <div className="text-center space-y-1">
-              <h3 className="text-xl font-semibold text-slate-800">Analyzing Invitation...</h3>
-              <p className="text-slate-500">Extracting events, time, and locations</p>
-            </div>
-          </div>
-        )}
 
-        {/* State: REVIEW */}
-        {appState === AppState.REVIEW && events.length > 0 && (
-          <div className="w-full flex flex-col lg:flex-row gap-8 items-start justify-center animate-slide-up">
-             {/* Left Column: Image Preview */}
-            <div className="w-full lg:w-1/3 flex flex-col gap-4 lg:sticky lg:top-6">
-              <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Source Image</p>
-                {previewImage && (
-                  <img 
-                    src={previewImage} 
-                    alt="Original Invitation" 
-                    className="w-full h-auto rounded-lg object-contain max-h-[500px]" 
-                  />
+                <ImageDropzone onImageSelected={processImage} disabled={false} />
+                
+                {appState === AppState.ERROR && (
+                  <div className="p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 text-sm font-medium animate-shake shadow-sm border border-red-100">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <p>{errorMessage}</p>
+                  </div>
                 )}
               </div>
-              
-              <button 
-                  onClick={resetApp}
-                  className="w-full py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl shadow-sm transition-all"
-              >
-                  Scan New Image
-              </button>
-            </div>
+            )}
 
-            {/* Right Column: Stacked Cards or Success */}
-            <div className="w-full lg:w-2/3 relative min-h-[600px] pb-20">
-              
-              {stackOrder.length === 0 ? (
-                /* Success View */
-                 <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in bg-white/50 rounded-3xl border-2 border-dashed border-slate-200 p-8 min-h-[400px]">
-                    <div className="p-4 bg-green-100 text-green-600 rounded-full shadow-sm animate-bounce">
-                        <CheckCircle className="w-12 h-12" />
+            {/* State: PROCESSING */}
+            {appState === AppState.PROCESSING && (
+              <div className="flex flex-col items-center justify-center space-y-8 animate-fade-in">
+                <div className="relative">
+                  {previewImage && (
+                    <div className="w-48 h-48 md:w-56 md:h-56 rounded-3xl overflow-hidden shadow-2xl ring-4 ring-white border-4 border-white transform rotate-3 bg-white">
+                      <img src={previewImage} alt="Processing" className="w-full h-full object-cover" />
                     </div>
-                    <div>
-                        <h3 className="text-2xl font-bold text-slate-800">All Caught Up!</h3>
-                        <p className="text-slate-500 mt-2">
-                           You've successfully processed all events from the image.
-                        </p>
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="p-6 bg-white rounded-full shadow-lg ring-1 ring-slate-100 animate-bounce-gentle">
+                      <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
                     </div>
-                    <button 
-                        onClick={resetApp}
-                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition-all transform hover:-translate-y-0.5"
-                    >
-                        Scan Another Image
-                    </button>
-                 </div>
-              ) : (
-                /* Cards Stack */
-                <>
-                  <div className="mb-6 flex justify-center animate-fade-in">
-                      <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-white text-slate-600 shadow-sm border border-slate-200">
-                        {stackOrder.length} event{stackOrder.length !== 1 ? 's' : ''} remaining
-                      </span>
                   </div>
+                </div>
+                <div className="text-center space-y-2">
+                    <h3 className="text-2xl font-bold text-slate-800 animate-pulse">Reading details...</h3>
+                    <p className="text-slate-400">This might take a moment</p>
+                </div>
+              </div>
+            )}
 
-                  <div className="grid grid-cols-1 grid-rows-1 isolate">
-                    {events.map((event, originalIndex) => {
-                      // Find where this event sits in the visual stack
-                      const visualIndex = stackOrder.indexOf(originalIndex);
-                      
-                      // We only render/animate the top 3 cards
-                      const isVisible = visualIndex > -1 && visualIndex < 3;
-                      
-                      if (!isVisible && visualIndex !== -1) return null;
-
-                      return (
-                        <div 
-                            key={originalIndex}
-                            className="transition-all duration-500 ease-out bg-transparent"
-                            style={{
-                                gridArea: '1 / 1',
-                                zIndex: 30 - visualIndex * 10,
-                                transformOrigin: 'bottom center',
-                                transform: `translateY(${visualIndex * 14}px) scale(${1 - visualIndex * 0.05})`,
-                                opacity: isVisible ? 1 : 0,
-                                pointerEvents: visualIndex === 0 ? 'auto' : 'none',
-                            }}
-                        >
-                           {/* Wrapper to add dimming effect to back cards */}
-                           <div className={`transition-all duration-500 rounded-xl ${visualIndex > 0 ? 'brightness-95 shadow-none' : 'shadow-xl'}`}>
-                                <EventForm 
-                                    initialData={event} 
-                                    onReset={resetApp} 
-                                    onComplete={handleCardComplete}
-                                    index={originalIndex}
-                                    total={events.length}
-                                />
-                           </div>
+            {/* State: REVIEW */}
+            {appState === AppState.REVIEW && events.length > 0 && (
+              <div className="w-full h-full max-h-[850px] flex flex-col justify-center relative perspective-1000 pb-2">
+                  
+                  {stackOrder.length === 0 ? (
+                    /* Success View - Flat Illustration Style */
+                     <div className="flex flex-col items-center justify-center text-center space-y-8 animate-scale-in h-full py-12">
+                        <div className="relative">
+                            <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                                <CheckCircle className="w-16 h-16 text-green-600" />
+                            </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+                        <div className="space-y-2">
+                            <h3 className="text-3xl font-bold text-slate-900">All Done!</h3>
+                            <p className="text-slate-500 text-lg">
+                               Your calendar is up to date.
+                            </p>
+                        </div>
+                        <button 
+                            onClick={resetApp}
+                            className="w-full max-w-xs h-[56px] flex items-center justify-center bg-indigo-600 active:bg-indigo-700 text-white font-bold text-lg rounded-2xl shadow-md transition-all transform active:scale-95 focus:outline-none focus:ring-4 focus:ring-indigo-500/30"
+                        >
+                            Scan Another
+                        </button>
+                     </div>
+                  ) : (
+                    /* Cards Stack */
+                    <div className="relative w-full h-full">
+                        {events.map((event, originalIndex) => {
+                          const visualIndex = stackOrder.indexOf(originalIndex);
+                          const isVisible = visualIndex > -1 && visualIndex < 3;
+                          
+                          if (!isVisible && visualIndex !== -1) return null;
 
-      {/* Footer */}
-      <footer className="mt-auto py-8 text-center text-slate-400 text-sm">
-        <p>Powered by Google Gemini 2.5 Flash</p>
-      </footer>
+                          return (
+                            <div 
+                                key={originalIndex}
+                                className="absolute inset-0 transition-all duration-500 ease-out will-change-transform"
+                                style={{
+                                    zIndex: 30 - visualIndex * 10,
+                                    transformOrigin: 'bottom center',
+                                    transform: `translateY(${visualIndex * 12}px) scale(${1 - visualIndex * 0.04})`,
+                                    opacity: isVisible ? 1 : 0,
+                                    pointerEvents: visualIndex === 0 ? 'auto' : 'none',
+                                }}
+                            >
+                               <div className={`h-full w-full transition-all duration-500 shadow-xl rounded-3xl ${visualIndex > 0 ? 'brightness-95 grayscale-[0.2]' : ''}`}>
+                                    <EventForm 
+                                        initialData={event} 
+                                        onReset={dismissCurrentCard} 
+                                        onComplete={handleCardSaved}
+                                    />
+                               </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+              </div>
+            )}
+        </div>
+      </main>
+
+      {/* Full Screen Image Modal */}
+      {isImageModalOpen && previewImage && (
+         <div className="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur-sm flex flex-col animate-fade-in">
+            <div className="p-4 flex justify-end shrink-0">
+               <button 
+                 onClick={() => setIsImageModalOpen(false)} 
+                 className="w-[44px] h-[44px] flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                 aria-label="Close Preview"
+               >
+                  <X size={24} />
+               </button>
+            </div>
+            <div className="flex-1 p-4 flex items-center justify-center overflow-hidden">
+               <img 
+                 src={previewImage} 
+                 alt="Original" 
+                 className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+               />
+            </div>
+         </div>
+      )}
     </div>
   );
 };
