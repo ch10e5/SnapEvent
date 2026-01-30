@@ -1,7 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 import { EventDetails } from '../types';
 
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+// Set this to TRUE when you have deployed the 'server.js' backend.
+// Set this to FALSE to use the API Key directly in the browser (for development).
+const USE_BACKEND_PROXY = false; 
+
+// The URL of your deployed server (e.g., https://my-event-app-api.onrender.com/api/extract)
+const BACKEND_URL = 'http://localhost:3000/api/extract';
+// ============================================================================
+
+
 const getClient = () => {
+  // Only access process.env.API_KEY if we are NOT using the proxy.
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     throw new Error("API Key not found in environment variables");
@@ -26,11 +39,72 @@ export const fileToGenerativePart = async (file: File): Promise<string> => {
   });
 };
 
+/**
+ * Main Entry Point: Decides whether to use Direct or Proxy mode
+ */
 export const extractEventDetails = async (base64Image: string, mimeType: string): Promise<EventDetails[]> => {
+    if (USE_BACKEND_PROXY) {
+        return extractEventDetailsViaProxy(base64Image, mimeType);
+    } else {
+        return extractEventDetailsDirect(base64Image, mimeType);
+    }
+};
+
+/**
+ * Helper: Normalizes raw JSON data into EventDetails objects
+ */
+const mapToEventDetails = (data: any): EventDetails[] => {
+    const dataArray = Array.isArray(data) ? data : [data];
+
+    return dataArray.map((item: any) => ({
+      title: item.title || "Untitled Event",
+      location: item.location || "",
+      description: item.description || "",
+      startDateTime: item.startDateTime || "",
+      endDateTime: item.endDateTime || "",
+      recurrence: item.recurrence || "",
+    }));
+};
+
+/**
+ * MODE A: Secure Proxy (Recommended for Production)
+ * Sends image to backend, backend holds the key and handles rate limiting.
+ */
+const extractEventDetailsViaProxy = async (base64Image: string, mimeType: string): Promise<EventDetails[]> => {
+    try {
+        const response = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ base64Image, mimeType }),
+        });
+
+        if (!response.ok) {
+            let errorMsg = 'Backend request failed';
+            try {
+                const err = await response.json();
+                errorMsg = err.error || errorMsg;
+            } catch (e) {}
+            throw new Error(errorMsg);
+        }
+
+        const data = await response.json();
+        return mapToEventDetails(data);
+
+    } catch (error) {
+        console.error("Proxy Error:", error);
+        throw error;
+    }
+};
+
+/**
+ * MODE B: Direct Client (Dev / Preview)
+ * Uses API Key directly in browser. Not recommended for public deployment.
+ */
+const extractEventDetailsDirect = async (base64Image: string, mimeType: string): Promise<EventDetails[]> => {
   const ai = getClient();
   
-  // Optimized for speed: Using gemini-3-flash-preview with a moderate thinking budget.
-  // This maintains high accuracy for OCR/Layout but responds much faster than Pro.
   const modelId = "gemini-3-flash-preview";
   const currentDateTime = new Date().toString();
 
@@ -83,7 +157,7 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
       config: {
         responseMimeType: "application/json",
         thinkingConfig: {
-            thinkingBudget: 1024 // Reduced budget to balance speed and reasoning accuracy
+            thinkingBudget: 1024 
         }
       }
     });
@@ -95,8 +169,6 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
 
     // Robust JSON parsing
     let jsonString = responseText;
-    
-    // Attempt to sanitize if markdown code blocks are present despite mimeType config
     if (jsonString.includes('```json')) {
         jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
     }
@@ -124,16 +196,7 @@ export const extractEventDetails = async (base64Image: string, mimeType: string)
         throw new Error("Failed to parse AI response as JSON");
     }
 
-    const dataArray = Array.isArray(data) ? data : [data];
-
-    return dataArray.map((item: any) => ({
-      title: item.title || "Untitled Event",
-      location: item.location || "",
-      description: item.description || "",
-      startDateTime: item.startDateTime || "",
-      endDateTime: item.endDateTime || "",
-      recurrence: item.recurrence || "",
-    }));
+    return mapToEventDetails(data);
 
   } catch (error) {
     console.error("Error extracting event details:", error);
